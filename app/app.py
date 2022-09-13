@@ -15,7 +15,7 @@ df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/gapmi
 
 app.layout = dbc.Container([
 
-    dbc.Row(dbc.Col(html.H2("Your Amazing Dashboard"), width={'size': 12, 'offset': 0, 'order': 0}), style = {'textAlign': 'center', 'paddingBottom': '1%'}),
+    dbc.Row(dbc.Col(html.H2("Testing"), width={'size': 12, 'offset': 0, 'order': 0}), style = {'textAlign': 'center', 'paddingBottom': '1%'}),
 
     dbc.Row(dbc.Col(dcc.Loading(children=[dcc.Graph(id ='your-graph'),
                                           dcc.Slider(id='year-slider',
