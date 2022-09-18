@@ -1,11 +1,11 @@
 version: '3.7'
 services:
 
-  dashboard:
+  air-travel-delays:
     build:
       context: ./
-    container_name: delaysappdashboard
-    hostname: delaysappdashboard
+    container_name: air-travel-delays
+    hostname: air-travel-delays
     restart: always
     ports:
       - 5000:80

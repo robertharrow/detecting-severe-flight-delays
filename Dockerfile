@@ -1,10 +1,11 @@
-FROM python:3.8-slim-buster
+FROM python:3.8
 
 RUN apt-get update
 RUN apt-get install nano
 
 RUN mkdir wd
 WORKDIR wd
+COPY data/prepared/ data/prepared/
 COPY app/requirements.txt .
 RUN pip3 install -r requirements.txt
 
