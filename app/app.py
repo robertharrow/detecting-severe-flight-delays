@@ -6,48 +6,31 @@ import plotly.express as px
 from flask import Flask
 import pandas as pd
 import dash
-from datetime import datetime, timedelta
-import datetime
-from dash.exceptions import PreventUpdate
+from datetime import timedelta
 import pickle
 import warnings
 warnings.filterwarnings(action='ignore', category=FutureWarning)
-import xgboost as xgb
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.pipeline import Pipeline
-from xgboost import XGBClassifier
-from sklearn.compose import ColumnTransformer
-import numpy as np
 import json
 import requests
 from pytz import timezone
-import pytz
-import datetime
 from datetime import date
 from dotenv import load_dotenv
 import os
+from dash.exceptions import PreventUpdate
 
 server = Flask(__name__)
 app = dash.Dash(server=server, external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
-app.title = 'Dashboard'
+app.title = '  air-travel-delays'
 
 unique_flight_records = pd.read_csv('data/prepared/unique_flight_number_data.csv')
-df_by_date = pd.read_csv('data/prepared/delays-by-date.csv')
 df_by_airport = pd.read_csv('data/prepared/delays-by-airport.csv')
-df_by_airline = pd.read_csv('data/prepared/delays-by-airline.csv')
+df_by_hour = pd.read_csv('data/prepared/delays-by-hour.csv')
+df_by_holiday = pd.read_csv('data/prepared/delays-by-holiday.csv')
+
 holidays = pd.read_csv('data/prepared/holidays.csv')
 holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date'])
 
 airports = list(df_by_airport['ORIGIN'].unique())
-overall_delays = px.line(df_by_date,
-                                x=df_by_date.date,
-                                y=df_by_date['percent-delayed'],
-                                labels={
-                                    "x": "Date",
-                                    "y": "Severe Delays"}, title="Daily Severe Airport Delays")
-overall_delays.update_layout(xaxis_rangeslider_visible=True)
-overall_delays.update_traces(line_color='#f64c72')
-
 
 def remove_timezone(dt):
     # HERE `dt` is a python datetime
@@ -81,26 +64,26 @@ app.layout = dbc.Container([
                                   html.P("Now, tell us your flight time:", style={'paddingBottom': '5px', 'paddingTop': '10px', 'font-weight': 'bold'}, id='instructions3'),
                                   html.Div(dcc.Dropdown(id='time-selection')),
                                   html.P("Finally, hit \"Predict\" to have our model check your flight! ", style= {'paddingBottom': '5px', 'paddingTop': '10px', 'font-weight': 'bold'}, id='instructions4'),
-                                  html.Button('Predict', id='submit-val', n_clicks=0),
+                                  html.Button('Predict', id='submit-val'),
                                   html.Div(id='container-button-basic',
                                           children='', style= {'paddingBottom': '5px', 'paddingTop': '10px'}),
-                                  html.Div(id='prediction')]))),
-        dbc.Row(dbc.Col(dcc.Graph(
-            id='example-graph',
-            figure=overall_delays
-        ))),
-        dbc.Row(dbc.Col(html.H3("Delays by Airport"), width={'size': 12, 'offset': 0}), style={'textAlign': 'center'}),
-        dbc.Row(dbc.Col(html.P("Select an airport to see severe delays there over time."), width={'size': 12, 'offset': 0}), style={'textAlign': 'center', 'paddingBottom': '1%', 'paddingTop': '1%'}),
+                                  html.Div(id='prediction', style={'font-weight': 'bold'})]))),
+        dbc.Row(dbc.Col(html.H3("See Stats by Airport"), width={'size': 12, 'offset': 0}), style={'textAlign': 'center'}),
+        dbc.Row(dbc.Col(html.P("Select an airport and see more details about severe delays there."), width={'size': 12, 'offset': 0}), style={'textAlign': 'center', 'paddingBottom': '1%', 'paddingTop': '1%'}),
         dbc.Row(dbc.Col(html.Div([
             dcc.Dropdown(
-                id='fig_dropdown-2',
+                id='airport-dropdown',
                 options=[{'label': x, 'value': x} for x in airports],
                 value='JFK')]), width={"size": 6, "offset": 3},
                             )
                 ),
-        dbc.Row(dbc.Col(html.Div(id='fig_plot-2'), width={"size": 12},
-                        ))
-                                ])
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12},
+                        )),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-2'), width={"size": 12},
+                    )),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-3'), width={"size": 12},))
+])
+
 @app.callback(dash.dependencies.Output('time-selection', 'options'),
               Input('input-on-submit', 'value'),
               Input('submit-val', 'n_clicks')
@@ -118,22 +101,6 @@ def get_flight_times(value, n_clicks):
         flight_time_options = ['It seems we don\'t have information on this flight. Try entering another one.']
         return flight_time_options
 
-@app.callback(
-     dash.dependencies.Output('input-on-submit', 'style'),
-     dash.dependencies.Output('instructions1', 'style'),
-     dash.dependencies.Output('instructions2', 'style'),
-     dash.dependencies.Output('instructions3', 'style'),
-     dash.dependencies.Output('instructions4', 'style'),
-     dash.dependencies.Output('my-date-picker-single', 'style'),
-     dash.dependencies.Output('demo-dropdown', 'style'),
-     dash.dependencies.Output('submit-val', 'style'),
-     dash.dependencies.Input('submit-val', 'n_clicks'),
-     dash.dependencies.State('input-on-submit', 'value')
-)
-def display_results(n_clicks):
-    if n_clicks > 0:
-        hide_element = {'display': 'none'}
-        return hide_element, hide_element, hide_element, hide_element, hide_element, hide_element, hide_element, hide_element
 @app.callback([dash.dependencies.Output('prediction', 'children')],
               [dash.dependencies.Input('my-date-picker-single', 'date'),
                dash.dependencies.Input('time-selection', 'value'),
@@ -150,7 +117,7 @@ def predict(date_value, time, n_clicks, value):
             date_string = date_object.strftime('%Y-%m-%d')
         flight_num = value
         flight_time = time
-        if date_value is not None and time is not None and value in all_flights and n_clicks > 0:
+        if date_value is not None and time is not None and value in all_flights and n_clicks is not None:
             flight_number = value
             flight_date = date_string
             flight_details = unique_flight_records.loc[
@@ -299,24 +266,60 @@ def predict(date_value, time, n_clicks, value):
             loaded_model = pickle.load(open(filename, 'rb'))
             prediction = loaded_model.predict(X)
             if prediction[0] == 'No':
-                return ['No major delay expected']
+                return ['Our model doesn\'t expect major delays. Refresh to try other inputs.']
             else:
-                return ['Our model thinks your flight is likely to experience a major delay.']
+                return ['Our model thinks your flight is likely to experience a major delay. Refresh to try other inputs.']
+        else:
+            raise PreventUpdate
+@app.callback(
+    dash.dependencies.Output('input-on-submit', 'style'),
+    dash.dependencies.Output('instructions1', 'style'),
+    dash.dependencies.Output('instructions2', 'style'),
+    dash.dependencies.Output('instructions3', 'style'),
+    dash.dependencies.Output('instructions4', 'style'),
+    dash.dependencies.Output('my-date-picker-single', 'style'),
+    dash.dependencies.Output('time-selection', 'style'),
+    dash.dependencies.Output('submit-val', 'style'),
+    Input(component_id='submit-val', component_property='n_clicks')
+)
+def update_output(n_clicks):
+    if n_clicks is None:
+        raise PreventUpdate
+    else:
+        hide_element = {'display': 'none'}
+        return hide_element, hide_element, hide_element, hide_element, hide_element, hide_element, hide_element, hide_element
 
 @app.callback(
-dash.dependencies.Output('fig_plot-2', 'children'),
-[dash.dependencies.Input('fig_dropdown-2', 'value')])
+dash.dependencies.Output('airport-specific-charts-1', 'children'),
+dash.dependencies.Output('airport-specific-charts-2', 'children'),
+dash.dependencies.Output('airport-specific-charts-3', 'children'),
+[dash.dependencies.Input('airport-dropdown', 'value')])
 def update_output(fig_name):
     return name_to_figure(fig_name)
 def name_to_figure(fig_name):
-    fig = px.line(df_by_date,
-                  x=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['date'],
+    overall_delays = px.line(df_by_airport,
+                  x=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['FL_DATE_LOCAL'],
                   y=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
                   labels={"x": "Date",
                           "y": "Severe Delays"},
                   title="Daily Severe Airport Delays at {} Airport".format(fig_name))
-    fig.update_layout(xaxis_rangeslider_visible=True)
-    return dcc.Graph(figure=fig)
+    overall_delays.update_layout(xaxis_rangeslider_visible=True)
+
+    delays_by_hour = px.bar(df_by_hour,
+                  x=df_by_hour.loc[df_by_hour['ORIGIN'] == '{}'.format(fig_name)]['rounded-hour'],
+                  y=df_by_hour.loc[df_by_hour['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
+                  labels={"x": "Hour of the Day",
+                          "y": "Severe Delays"},
+                  title="Severe Delays by Hour of the Day at {} Airport".format(fig_name))
+
+    delays_by_holiday = px.bar(df_by_holiday,
+                             x=df_by_holiday.loc[df_by_holiday['ORIGIN'] == '{}'.format(fig_name)]['holiday'],
+                             y=df_by_holiday.loc[df_by_holiday['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
+                             labels={"x": "Holiday",
+                                     "y": "Severe Delays"},
+                             title="Percent of Flights Severely Delayed by Holiday at {} Airport".format(fig_name))
+
+    return dcc.Graph(figure=overall_delays), dcc.Graph(figure=delays_by_hour), dcc.Graph(figure=delays_by_holiday)
 
 if __name__ == '__main__':
     app.run(debug=True)
