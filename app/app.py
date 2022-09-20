@@ -24,15 +24,14 @@ app = dash.Dash(server=server, external_stylesheets=[dbc.themes.FLATLY], prevent
 app.title = '  air-travel-delays'
 
 airport_lookup =  pd.read_csv('data/prepared/airport_lookup.csv')
-origin_options = list(airport_lookup['ORIGIN'].unique())
-destination_options = list(airport_lookup['DEST'].unique())
-relevant_airlines = ['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines']
+origin_options = sorted(list(airport_lookup['ORIGIN'].unique()))
+relevant_airlines = sorted(['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines'])
 df_by_airport = pd.read_csv('data/prepared/delays-by-airport.csv')
 df_by_holiday = pd.read_csv('data/prepared/delays-by-holiday.csv')
 df_weekdays_times = pd.read_csv('data/prepared/df_by_timeofday_weekday.csv')
 holidays = pd.read_csv('data/prepared/holidays.csv')
 holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date'])
-airports = list(df_by_airport['ORIGIN'].unique())
+airports = sorted(list(df_by_airport['ORIGIN'].unique()))
 
 def remove_timezone(dt):
     # HERE `dt` is a python datetime
@@ -59,7 +58,7 @@ app.layout = dbc.Container([
                                   html.P("Step 2: Select the airport you\'re flying FROM:", style={'paddingTop': '10px'}),
                                   html.Div(dcc.Dropdown(id='select-origin', options=[{'label': x, 'value': x} for x in origin_options])),
                                   html.P("Step 3: Select the airport you\'re flying TO:", style={'paddingTop': '10px'}),
-                                  html.Div(dcc.Dropdown(id='select-dest', options=[{'label': x, 'value': x} for x in destination_options])),
+                                  html.Div(dcc.Dropdown(id='select-dest')),
                                   html.P("Step 4: Enter your flight date (up to 14 days from today):", style={'paddingTop': '10px'}),
                                   html.Div([
                                         dcc.DatePickerSingle(
@@ -72,46 +71,33 @@ app.layout = dbc.Container([
                                     ]),
                                   html.P("Step 5: Enter your flight time (24 Hour Format):", style={'paddingTop': '10px'}),
                                   html.Div(
-                                      [dcc.Input(id="hour-time", min=0, max=24, step=1, type="number", debounce=True, placeholder="HH"),
-                                       dcc.Input(id="minutes-time", min=0, max=60, step=1, type="number", debounce=True, placeholder="MM")]),
+                                      [dcc.Input(id="hour-time", min=0, max=24, step=1, type="number", debounce=True, placeholder="HH", style={'width': '15%'}),
+                                       dcc.Input(id="minutes-time", min=0, max=60, step=1, type="number", debounce=True, placeholder="MM", style={'width': '15%'})]),
                                   html.P("Step 6: Enter your flight duration:", style={'paddingTop': '10px'}),
                                   html.Div(
-                                      [dcc.Input(id="hour-duration", min=0, max=24, step=1, type="number", debounce=True, placeholder="Hours"),
-                                          dcc.Input(id="minutes-duration", min=0, max=60, step=1, type="number", debounce=True, placeholder="Minutes")]),
+                                      [dcc.Input(id="hour-duration", min=0, max=24, step=1, type="number", debounce=True, placeholder="Hours", style={'width': '15%'}),
+                                          dcc.Input(id="minutes-duration", min=0, max=60, step=1, type="number", debounce=True, placeholder="Minutes", style={'width': '15%'})]),
                                   html.P("Press the \"Predict\" button! ", style={'paddingTop': '10px'}),
                                   html.Button('Predict', id='submit-val', style={'background-color': '#4681f4', 'color': 'white', 'border':'2px solid #4681f4', 'width': '100%'})],
-                                  id='model-inputs', style={'font-weight': 'bold'}))),
-        dbc.Row(dbc.Col(html.Div(id='prediction', style={'font-weight': 'bold'}))),
+                                  id='model-inputs', style={'font-weight': 'bold'}), width={'size': 6, 'offset': 3})),
+        dbc.Row(dbc.Col(html.H4(id='prediction', style={'font-weight': 'bold', 'paddingBottom': '2%', 'paddingTop': '1%', 'border-style': 'solid', 'border-color': '#5dbea3'}), width={'size': 6, 'offset': 3})),
         dbc.Row(dbc.Col(html.H3("See Stats by Airport"), width={'size': 6, 'offset': 3}), style={'textAlign': 'center', 'paddingBottom': '1%', 'paddingTop': '3%'}),
         dbc.Row(dbc.Col(html.P("Select an airport and see more details about severe delays there."), width={'size': 6, 'offset': 3})),
         dbc.Row(dbc.Col(html.Div([
             dcc.Dropdown(
                 id='airport-dropdown',
-                options=[{'label': x, 'value': x} for x in airports])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '1%', 'paddingTop': '1%'})),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12},
-                        )),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-2'), width={"size": 12},
-                    )),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-3'), width={"size": 12},))
+                options=[{'label': x, 'value': x} for x in airports])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12, "offset": 0})),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-2'), width={"size": 12, "offset": 0})),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-3'), width={"size": 12, "offset": 0}))
 ])
 
-# @app.callback(dash.dependencies.Output('time-selection', 'options'),
-#               Input('input-on-submit', 'value'),
-#               Input('submit-val', 'n_clicks')
-#               )
-#
-# def get_input_options(value, n_clicks):
-#     flight_num = value
-#     all_flights = list(unique_flight_records['flight-number'].unique())
-#     if flight_num in all_flights:
-#         flight_time_options = list(
-#             unique_flight_records.loc[unique_flight_records['flight-number'] == str(flight_num)][
-#                 'CRS_DEP_TIME'].unique())
-#         return flight_time_options
-#     else:
-#         flight_time_options = ['It seems we don\'t have information on this flight. Try entering another one.']
-#         return flight_time_options
-
+@app.callback(dash.dependencies.Output('select-dest', 'options'),
+               dash.dependencies.Input('select-origin', 'value'))
+def get_destination_options(origin):
+    filtered_dest_options = list(airport_lookup.loc[airport_lookup['ORIGIN'] == origin]['DEST'].unique())
+    destination_options = sorted(filtered_dest_options)
+    return destination_options
 @app.callback([dash.dependencies.Output('prediction', 'children')],
               [dash.dependencies.Input('select-airline', 'value'),
                dash.dependencies.Input('select-origin', 'value'),
@@ -281,15 +267,14 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         loaded_model = pickle.load(open(filename, 'rb'))
         prediction = loaded_model.predict(X)
         if prediction[0] == 'No':
-            return ['Our model doesn\'t expect major delays. Refresh to try other inputs.']
+            return ['Our model doesn\'t expect a major delays for the flight you selected. Refresh to try another flight.']
         else:
-            return ['Our model thinks your flight is likely to experience a major delay. Refresh to try other inputs.']
+            return ['Our model predicts your flight will experience a major delay. Refresh to try another flight.']
     else:
         raise PreventUpdate
 @app.callback(
     dash.dependencies.Output('model-inputs', 'style'),
-    Input(component_id='submit-val', component_property='n_clicks')
-)
+    Input(component_id='submit-val', component_property='n_clicks'))
 def update_output(n_clicks):
     if n_clicks is None:
         raise PreventUpdate
@@ -311,10 +296,11 @@ def name_to_figure(fig_name):
     days_and_times = px.density_heatmap(df_weekdays_times.loc[df_weekdays_times['ORIGIN'] == '{}'.format(fig_name)],
                              x="DAY_OF_WEEK", y="takeoff-time-of-day", z='percent-delayed', histfunc="avg",
                              color_continuous_scale='OrRd',
-                             category_orders={"DAY_OF_WEEK": order_days, "takeoff-time-of-day": order_times})
+                             category_orders={"DAY_OF_WEEK": order_days, "takeoff-time-of-day": order_times},
+                             title='Percent of Flights with Severe Delays Throughout the Week')
 
     days_and_times.update_layout(coloraxis_colorbar=dict(
-        title="Average Percentage of Flights with Severe Delays",
+        title="% Delayed",
     ))
 
     delays_by_holiday = px.bar(df_by_holiday,
@@ -325,10 +311,9 @@ def name_to_figure(fig_name):
                              labels={"x": "Holiday",
                                      "y": "Severe Delays"},
                              title="Percent of Flights Severely Delayed by Holiday at {} Airport".format(fig_name))
-
     overall_delays = px.line(df_by_airport,
                   x=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['FL_DATE'],
-                  y=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
+                  y=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['Severe Delays'],
                   labels={"x": "Date",
                           "y": "Severe Delays"},
                   title="Daily Severe Airport Delays at {} Airport".format(fig_name))
