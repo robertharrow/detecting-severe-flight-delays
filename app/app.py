@@ -1,3 +1,4 @@
+# Brining in libraries
 from dash.dependencies import Output, Input, State
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
@@ -8,8 +9,6 @@ import pandas as pd
 import dash
 from datetime import timedelta
 import pickle
-import warnings
-warnings.filterwarnings(action='ignore', category=FutureWarning)
 import json
 import requests
 from pytz import timezone
@@ -18,38 +17,40 @@ from dotenv import load_dotenv
 import os
 from dash.exceptions import PreventUpdate
 import numpy as np
+import warnings
+warnings.filterwarnings(action='ignore', category=FutureWarning)
 
+# Initializing Flask server and Dash App
 server = Flask(__name__)
 app = dash.Dash(server=server, external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
 app.title = '  air-travel-delays'
 
-airport_lookup =  pd.read_csv('data/prepared/airport_lookup.csv')
-origin_options = sorted(list(airport_lookup['ORIGIN'].unique()))
-relevant_airlines = sorted(['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines'])
-df_by_airport = pd.read_csv('data/prepared/delays-by-airport.csv')
-df_by_holiday = pd.read_csv('data/prepared/delays-by-holiday.csv')
-df_weekdays_times = pd.read_csv('data/prepared/df_by_timeofday_weekday.csv')
-holidays = pd.read_csv('data/prepared/holidays.csv')
-holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date'])
-airports = sorted(list(df_by_airport['ORIGIN'].unique()))
+# Loading Data for Visualizations
+airport_lookup =  pd.read_csv('data/prepared/airport_lookup.csv') # Data on airport combinations used for seeing which origins support which destinations
+df_by_airport = pd.read_csv('data/prepared/delays-by-airport.csv') # Delays by airport
+df_by_holiday = pd.read_csv('data/prepared/delays-by-holiday.csv') # Delays by Holiday
+df_weekdays_times = pd.read_csv('data/prepared/df_by_timeofday_weekday.csv') # Delays by time of day and weekday
+holidays = pd.read_csv('data/prepared/holidays.csv') # US Holidays Dataframe
+holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date']) # Transforming date field in Holidays Dataframe to datetime
 
+airports = sorted(list(df_by_airport['ORIGIN'].unique())) # Sorted list of origin options
+relevant_airlines = sorted(['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines']) # Supported Airlines List
+origin_options = sorted(list(airport_lookup['ORIGIN'].unique())) # Data for origin selection in dropdown
+
+#Supporting functions
 def remove_timezone(dt):
-    # HERE `dt` is a python datetime
-    # object that used .replace() method
-
+    '''
+    Here `dt` is a python datetime
+    object that used .replace() method
+    Necessary to remove timezone info when transforming data for modeling
+    '''
     return dt.replace(tzinfo=None)
 
-def takeoff_hour_rounder(time):
-    '''
-    Function takes in a time and returns time rounded to the
-    nearest hour by adding a timedelta hour if minute >= 30
-    '''
-    return (time.replace(second=0, microsecond=0, minute=0, hour=time.hour)
-               +timedelta(hours=time.minute//30))
-
+# Disclaimer text to display in layout
 disclaimer_text = 'Disclaimer: This model will try to predict whether a future flight will experience a severe delay (defined as 1 hour or more). The model isn\'t guaranteed to be correct.' \
                   ' Currently, it also only supports flights originating from 62 major US airports and the top 8 major airlines'
 
+# Main app content
 app.layout = dbc.Container([
         dbc.Row(dbc.Col(html.H2("Will your flight be severely delayed?"), width={'size': 12, 'offset': 0}), style={'textAlign': 'center', 'paddingBottom': '2%', 'paddingTop': '2%'}),
         dbc.Row(dbc.Col(html.P(disclaimer_text), width={'size': 6, 'offset': 3}), style={'textAlign': 'center', 'paddingBottom': '10px', 'paddingTop': '10px', 'font-style': 'italic'}),
@@ -91,7 +92,7 @@ app.layout = dbc.Container([
         dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-2'), width={"size": 12, "offset": 0})),
         dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-3'), width={"size": 12, "offset": 0}))
 ])
-
+# Callbacks
 @app.callback(dash.dependencies.Output('select-dest', 'options'),
                dash.dependencies.Input('select-origin', 'value'))
 def get_destination_options(origin):
@@ -140,7 +141,7 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         flight_details['FL_ARR_DATE_REL_ORIGIN'] = flight_details['FL_DATE_LOCAL'] + flight_details['flight_duration']
         # And now we convert arrival time and date to a local time
         flight_details['FL_ARR_DATE_LOCAL'] = flight_details.apply(lambda x: x['FL_ARR_DATE_REL_ORIGIN'].tz_convert(x['dest-tz']), axis=1)
-        # We won't be needitn timezone info anymore, so let's remove it
+        # We won't be need timezone info anymore, so let's remove it
         flight_details['FL_DATE_LOCAL'] = flight_details['FL_DATE_LOCAL'].apply(remove_timezone)
         flight_details['FL_ARR_DATE_LOCAL'] = flight_details['FL_ARR_DATE_LOCAL'].apply(remove_timezone)
         flight_details['FL_ARR_DATE_LOCAL'] = pd.to_datetime(flight_details['FL_ARR_DATE_LOCAL'])
