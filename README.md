@@ -1,6 +1,7 @@
 ![Lead Image](images/airplane-image.jpg)
 
 # Predicting Major Flight Delays
+Flatiron School Capstone Data Science Project **Author: Robert Harrow**
 
 Our client, FlightChicken, is developing a service to help users predict whether their flight may experience a severe delay. They would like us to develop a model for this. Giving users a heads up about a potential travel disruption can be tremendously helpful. Severe delays can cause travelers to miss connecting flights, miss important events and more.
 
@@ -227,6 +228,11 @@ Given more time, future iterations of this product might include things like gen
 * Proximity to holidays, precipitation and certain days of the year are among the strongest predictors
 * The biggest gains in performance came from dealing with the severe class imbalance and increasing the sample size of the training data
 * We'll next work to productionize this model using Flask and Dash and deploy it to a remote server
+
+## For more information
+See the full analysis in the Jupyter Notebooks (Parts [1](https://github.com/robertharrow/flight-delays/blob/main/1.%20Data%20Preparation%20%26%20Cleaning.ipynb), [2](https://github.com/robertharrow/flight-delays/blob/main/2.%20Modeling.ipynb) and [3](https://github.com/robertharrow/flight-delays/blob/main/3.%20Data%20for%20Web%20App.ipynb)) or review [this presentation](https://github.com/robertharrow/flight-delays/blob/main/presentation.pdf).
+
+For additional info, contact Robert Harrow at rharrow928@gmail.com.
 
 ## Repository Structure
 
