@@ -1,4 +1,4 @@
-![Lead Image](images/airplane-image.png)
+![Lead Image](images/airplane-image.jpg)
 
 # Predicting Major Flight Delays
 
