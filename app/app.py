@@ -5,6 +5,7 @@ import dash_core_components as dcc
 from dash import html
 import plotly.express as px
 from flask import Flask
+import flask
 import pandas as pd
 import dash
 from datetime import timedelta
@@ -22,7 +23,7 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 
 # Initializing Flask server and Dash App
 server = Flask(__name__)
-app = dash.Dash(server=server, external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
+app = dash.Dash(server=server, url_base_pathname='/flight-delays/', external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
 app.title = '  air-travel-delays'
 
 # Loading Data for Visualizations
@@ -384,5 +385,9 @@ def name_to_figure(fig_name):
 
     return dcc.Graph(figure=days_and_times), dcc.Graph(figure=delays_by_holiday), dcc.Graph(figure=overall_delays)
 
+@server.route('/flight-delays', methods=['GET'])
+def index():
+    return flask.redirect('/flight-delays')
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    server.run(debug=True)
