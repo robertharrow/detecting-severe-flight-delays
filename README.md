@@ -197,10 +197,11 @@ The best results were obtained by increasing the training sample size to 20% of 
 
 If you want to deploy this model to a web server, you will need Docker installed. We ran and tested this on an Ubuntu server using the following commands:
 
-To install docker:
+To install docker on an Ubuntu server run the following commands:
 
 ```
-$ sudo apt-get remove docker docker-engine docker.io containerd runc
+$ sudo apt-get update
+$ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
 Once running, run the following commands to start up the docker images and containers:
@@ -215,7 +216,7 @@ The above will use the Dockerfile and Docker-Compose.yml files and settings.
 
 A working demo of our version of the app can be accessed on: http://robertharrow.com:5000/
 
-If you run into issues using docker, documentation can be found [here](https://docs.docker.com/).
+If you run into issues using docker, or want instructions on installing it on a different type of OS, documentation can be found [here](https://docs.docker.com/).
 
 ## Conclusions
 
