@@ -164,10 +164,10 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         flight_details['FL_DATE_LOCAL'] = pd.to_datetime(flight_details['FL_DATE'] + ' ' + flight_details['time'])
         flight_details['FL_DATE_LOCAL'] = flight_details['FL_DATE_LOCAL'].astype('datetime64[ns]')
         # Create airport lookup key
-        flight_details['airport_lookup_key'] = flight_details['ORIGIN'] + flight_details['DEST']
+        flight_details['route'] = flight_details['ORIGIN'] + '-' + flight_details['DEST']
         # Merge in additional airport details from airport datafame using the above created key
-        flight_details = pd.merge(flight_details, airports_df, left_on='airport_lookup_key',
-                                  right_on='airport_lookup_key')
+        flight_details = pd.merge(flight_details, airports_df, left_on='route',
+                                  right_on='route')
         # Add timezone data to datetime column so that we can calculate arrival date
         flight_details['FL_DATE_LOCAL'] = flight_details.apply(
             lambda x: x['FL_DATE_LOCAL'].replace(tzinfo=timezone(x['origin-tz'])), axis=1)
