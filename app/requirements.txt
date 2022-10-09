@@ -30,5 +30,8 @@ pytz
 requests
 numpy
 sklearn
-xgboost==1.2.0
+xgboost==0.90
 python-dotenv
+postgres
+sqlalchemy
+psycopg2-binary

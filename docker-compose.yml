@@ -10,8 +10,41 @@ services:
     ports:
       - 80:80
     networks:
-      - network
+      - new
 
+  db:
+    container_name: pg_container
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${PG_USR}
+      POSTGRES_PASSWORD: ${PG_PASS}
+      POSTGRES_DB: flights_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      new:
+        aliases:
+          - database
+
+  pgadmin:
+    container_name: pgadmin4_container
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    networks:
+      - new
 networks:
-  network:
-    driver: bridge
+  new:
+
+volumes:
+  db-data:
+    driver: local
+  db:
+    driver: local
