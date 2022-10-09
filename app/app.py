@@ -18,25 +18,38 @@ from dotenv import load_dotenv
 import os
 from dash.exceptions import PreventUpdate
 import numpy as np
+from sqlalchemy import create_engine
+
 import warnings
 warnings.filterwarnings(action='ignore', category=FutureWarning)
 
 # Initializing Flask server and Dash App
 server = Flask(__name__)
 app = dash.Dash(server=server, url_base_pathname='/flight-delays/', external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
-app.title = '  air-travel-delays'
+app.title = 'air-travel-delays'
+
+
+load_dotenv()
+pg_user = os.getenv("PG_USR")
+pg_pass = os.getenv("PG_PASS")
+engine = create_engine('postgresql://{}:{}@database/carrier_data'.format(pg_user, pg_pass))
+
+airports_query = '''
+SELECT MIN("ORIGIN") as "ORIGIN", MIN("DEST") as "DEST", MIN("origin-elevation") as "origin-elevation", 
+MIN("dest-elevation") as "dest-elevation", MIN("DISTANCE") as "DISTANCE", MIN("dest-lat-long") as "dest-lat-long",
+MIN("origin-lat-long") as "origin-lat-long", MIN("origin-tz") as "origin-tz", MIN("dest-tz") as "dest-tz",
+("ORIGIN" || "DEST") as airport_lookup_key
+from flights
+GROUP BY
+    airport_lookup_key
+'''
+airports_df = pd.read_sql(airports_query, engine)
+origins_list = sorted(list(airports_df['ORIGIN'].unique())) # Sorted list of origin options
 
 # Loading Data for Visualizations
-airport_lookup =  pd.read_csv('data/prepared/airport_lookup.csv') # Data on airport combinations used for seeing which origins support which destinations
-df_by_airport = pd.read_csv('data/prepared/delays-by-airport.csv') # Delays by airport
-df_by_holiday = pd.read_csv('data/prepared/delays-by-holiday.csv') # Delays by Holiday
-df_weekdays_times = pd.read_csv('data/prepared/df_by_timeofday_weekday.csv') # Delays by time of day and weekday
 holidays = pd.read_csv('data/prepared/holidays.csv') # US Holidays Dataframe
 holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date']) # Transforming date field in Holidays Dataframe to datetime
-
-airports = sorted(list(df_by_airport['ORIGIN'].unique())) # Sorted list of origin options
 relevant_airlines = sorted(['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines']) # Supported Airlines List
-origin_options = sorted(list(airport_lookup['ORIGIN'].unique())) # Data for origin selection in dropdown
 
 #Supporting functions
 def remove_timezone(dt):
@@ -58,17 +71,17 @@ app.layout = dbc.Container([
         dbc.Row(dbc.Col(html.Div([html.P("Step 1: Select your Airline"),
                                   html.Div(dcc.Dropdown(id='select-airline', options=[{'label': x, 'value': x} for x in relevant_airlines])),
                                   html.P("Step 2: Select the airport you\'re flying FROM:", style={'paddingTop': '10px'}),
-                                  html.Div(dcc.Dropdown(id='select-origin', options=[{'label': x, 'value': x} for x in origin_options])),
+                                  html.Div(dcc.Dropdown(id='select-origin', options=[{'label': x, 'value': x} for x in origins_list])),
                                   html.P("Step 3: Select the airport you\'re flying TO:", style={'paddingTop': '10px'}),
                                   html.Div(dcc.Dropdown(id='select-dest')),
                                   html.P("Step 4: Enter your flight date (up to 14 days from today):", style={'paddingTop': '10px'}),
                                   html.Div([
                                         dcc.DatePickerSingle(
                                             id='my-date-picker-single',
-                                            min_date_allowed=date.today(),
+                                            min_date_allowed=date.today() + timedelta(days=1),
                                             max_date_allowed=date.today() + timedelta(days=14),
                                             initial_visible_month=date.today(),
-                                            date=date.today()
+                                            date=date.today() + timedelta(days=1)
                                         )
                                     ]),
                                   html.P("Step 5: Enter your flight time (24 Hour Format):", style={'paddingTop': '10px'}),
@@ -88,16 +101,18 @@ app.layout = dbc.Container([
         dbc.Row(dbc.Col(html.Div([
             dcc.Dropdown(
                 id='airport-dropdown',
-                options=[{'label': x, 'value': x} for x in airports])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12, "offset": 0})),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-2'), width={"size": 12, "offset": 0})),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-3'), width={"size": 12, "offset": 0}))
+                options=[{'label': x, 'value': x} for x in origins_list])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
+        dbc.Row(dbc.Col(html.Div([
+            dcc.Dropdown(
+                id='airport-dropdown-2',
+                options=['Holidays', 'Throughout the Week'])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
+        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12, "offset": 0}))
 ])
 # Callbacks
 @app.callback(dash.dependencies.Output('select-dest', 'options'),
                dash.dependencies.Input('select-origin', 'value'))
 def get_destination_options(origin):
-    filtered_dest_options = list(airport_lookup.loc[airport_lookup['ORIGIN'] == origin]['DEST'].unique())
+    filtered_dest_options = list(airports_df.loc[airports_df['ORIGIN'] == origin]['DEST'].unique())
     destination_options = sorted(filtered_dest_options)
     return destination_options
 @app.callback([dash.dependencies.Output('prediction', 'children')],
@@ -135,7 +150,7 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
 
     # Function should only run once "Predict" button is clicked to avoid errors
     if n_clicks is not None:
-        #Initalize an empty dataframe
+        # Initalize an empty dataframe
         flight_details = pd.DataFrame()
         # Set first values of dataframe based on above user input: Origin Airport, Destination Airport, Airline, Flight Date, Flight Time and Flight Duration
         flight_details['ORIGIN'] = [str(origin)]
@@ -150,15 +165,18 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         flight_details['FL_DATE_LOCAL'] = pd.to_datetime(flight_details['FL_DATE'] + ' ' + flight_details['time'])
         flight_details['FL_DATE_LOCAL'] = flight_details['FL_DATE_LOCAL'].astype('datetime64[ns]')
         # Create airport lookup key
-        flight_details['airport-lookup-key'] = flight_details['ORIGIN'] + '-' + flight_details['DEST']
-        # Merge in additional airport details from airport_lookup datafame using the above created key
-        flight_details = pd.merge(flight_details, airport_lookup, left_on='airport-lookup-key', right_on='airport-lookup-key')
+        flight_details['airport_lookup_key'] = flight_details['ORIGIN'] + flight_details['DEST']
+        # Merge in additional airport details from airport datafame using the above created key
+        flight_details = pd.merge(flight_details, airports_df, left_on='airport_lookup_key',
+                                  right_on='airport_lookup_key')
         # Add timezone data to datetime column so that we can calculate arrival date
-        flight_details['FL_DATE_LOCAL'] = flight_details.apply(lambda x: x['FL_DATE_LOCAL'].replace(tzinfo=timezone(x['origin-tz'])), axis=1)
+        flight_details['FL_DATE_LOCAL'] = flight_details.apply(
+            lambda x: x['FL_DATE_LOCAL'].replace(tzinfo=timezone(x['origin-tz'])), axis=1)
         flight_details['flight_duration'] = pd.to_timedelta(flight_details['CRS_ELAPSED_TIME'], 'm')
         flight_details['FL_ARR_DATE_REL_ORIGIN'] = flight_details['FL_DATE_LOCAL'] + flight_details['flight_duration']
         # And now we convert arrival time and date to a local time
-        flight_details['FL_ARR_DATE_LOCAL'] = flight_details.apply(lambda x: x['FL_ARR_DATE_REL_ORIGIN'].tz_convert(x['dest-tz']), axis=1)
+        flight_details['FL_ARR_DATE_LOCAL'] = flight_details.apply(
+            lambda x: x['FL_ARR_DATE_REL_ORIGIN'].tz_convert(x['dest-tz']), axis=1)
         # We won't be need timezone info anymore, so let's remove it
         flight_details['FL_DATE_LOCAL'] = flight_details['FL_DATE_LOCAL'].apply(remove_timezone)
         flight_details['FL_ARR_DATE_LOCAL'] = flight_details['FL_ARR_DATE_LOCAL'].apply(remove_timezone)
@@ -185,54 +203,53 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         flight_details['arriving-hour'] = flight_details['FL_ARR_DATE_LOCAL'].dt.hour.astype(int)
         # Use the above fetched hour field to calculate the time of day a flight takes off and arrives
         # Definitions of 'time of day' taken from Britannica: https://www.britannica.com/dictionary/eb/qa/parts-of-the-day-early-morning-late-morning-etc
-        conditions = [
-            (flight_details['takeoff-hour'] >= 5) & (flight_details['takeoff-hour'] <= 8),
-            (flight_details['takeoff-hour'] >= 8) & (flight_details['takeoff-hour'] <= 12),
-            (flight_details['takeoff-hour'] > 12) & (flight_details['takeoff-hour'] <= 15),
-            (flight_details['takeoff-hour'] > 15) & (flight_details['takeoff-hour'] <= 17),
-            (flight_details['takeoff-hour'] > 17) & (flight_details['takeoff-hour'] <= 19),
-            (flight_details['takeoff-hour'] > 19) & (flight_details['takeoff-hour'] <= 21),
-            (flight_details['takeoff-hour'] >= 0) & (flight_details['takeoff-hour'] < 5),
-            (flight_details['takeoff-hour'] > 21)
-        ]
+        conditions = [(flight_details['takeoff-hour'] >= 5) & (flight_details['takeoff-hour'] <= 8),
+                      (flight_details['takeoff-hour'] >= 8) & (flight_details['takeoff-hour'] <= 12),
+                      (flight_details['takeoff-hour'] > 12) & (flight_details['takeoff-hour'] <= 15),
+                      (flight_details['takeoff-hour'] > 15) & (flight_details['takeoff-hour'] <= 17),
+                      (flight_details['takeoff-hour'] > 17) & (flight_details['takeoff-hour'] <= 19),
+                      (flight_details['takeoff-hour'] > 19) & (flight_details['takeoff-hour'] <= 21),
+                      (flight_details['takeoff-hour'] >= 0) & (flight_details['takeoff-hour'] < 5),
+                      (flight_details['takeoff-hour'] > 21)]
         values = ['Early Morning', 'Late Morning', 'Early Afternoon', 'Late Afternoon', 'Early Evening', 'Late Evening',
                   'Night', 'Night']
         flight_details['takeoff-time-of-day'] = np.select(conditions, values)
 
-        arr_conditions = [
-            (flight_details['arriving-hour'] >= 5) & (flight_details['arriving-hour'] <= 8),
-            (flight_details['arriving-hour'] >= 8) & (flight_details['arriving-hour'] <= 12),
-            (flight_details['arriving-hour'] > 12) & (flight_details['arriving-hour'] <= 15),
-            (flight_details['arriving-hour'] > 15) & (flight_details['arriving-hour'] <= 17),
-            (flight_details['arriving-hour'] > 17) & (flight_details['arriving-hour'] <= 19),
-            (flight_details['arriving-hour'] > 19) & (flight_details['arriving-hour'] <= 21),
-            (flight_details['arriving-hour'] >= 0) & (flight_details['arriving-hour'] < 5),
-            (flight_details['arriving-hour'] > 21)
-        ]
+        arr_conditions = [(flight_details['arriving-hour'] >= 5) & (flight_details['arriving-hour'] <= 8),
+                          (flight_details['arriving-hour'] >= 8) & (flight_details['arriving-hour'] <= 12),
+                          (flight_details['arriving-hour'] > 12) & (flight_details['arriving-hour'] <= 15),
+                          (flight_details['arriving-hour'] > 15) & (flight_details['arriving-hour'] <= 17),
+                          (flight_details['arriving-hour'] > 17) & (flight_details['arriving-hour'] <= 19),
+                          (flight_details['arriving-hour'] > 19) & (flight_details['arriving-hour'] <= 21),
+                          (flight_details['arriving-hour'] >= 0) & (flight_details['arriving-hour'] < 5),
+                          (flight_details['arriving-hour'] > 21)]
         arr_values = ['Early Morning', 'Late Morning', 'Early Afternoon', 'Late Afternoon', 'Early Evening',
                       'Late Evening', 'Night', 'Night']
         flight_details['arrival-time-of-day'] = np.select(arr_conditions, arr_values)
 
         # Create Takeoff Congestion Key based on the origin, day of the week and takeoff time
         flight_details['takeoff-congestion-key'] = flight_details['ORIGIN_x'] \
-                                                 + flight_details['DAY_OF_WEEK'].astype(str) \
-                                                 + flight_details['takeoff-time-of-day']
+                                                   + flight_details['DAY_OF_WEEK'].astype(str) \
+                                                   + flight_details['takeoff-time-of-day']
         # Create Arrival Congestion Key based on origin, day of the week and takeoff time
         flight_details['arrival-congestion-key'] = flight_details['DEST_x'] \
-                                                 + flight_details['ARR_DAY_OF_WEEK'].astype(str) \
-                                                 + flight_details['arrival-time-of-day']
+                                                   + flight_details['ARR_DAY_OF_WEEK'].astype(str) \
+                                                   + flight_details['arrival-time-of-day']
 
         # Now we add congestion data to our main dataframe and merge it using the above generated key
         congestion = pd.read_csv('data/prepared/airport_congestion.csv')
-        flight_details = pd.merge(flight_details, congestion, left_on='takeoff-congestion-key', right_on='congestion-key')
+        flight_details = pd.merge(flight_details, congestion, left_on='takeoff-congestion-key',
+                                  right_on='congestion-key')
         # Update our key for the destination
         congestion = congestion.add_prefix('dest-')
         # Now data on the congestion conditions of the airport where the flight is arriving are merged in like above
-        flight_details = pd.merge(flight_details, congestion, left_on='arrival-congestion-key', right_on='dest-congestion-key')
+        flight_details = pd.merge(flight_details, congestion, left_on='arrival-congestion-key',
+                                  right_on='dest-congestion-key')
 
         # Next we calculate the proximity of the flight to a holiday
         # Start by merging the holidays dataframe into our flight_details dataframe with a tolerance of 7 days before or after
-        flight_details = pd.merge_asof(flight_details, holidays, left_on='FL_DATE_LOCAL', right_on='holiday_date', direction='nearest', tolerance=pd.Timedelta(days=7))
+        flight_details = pd.merge_asof(flight_details, holidays, left_on='FL_DATE_LOCAL', right_on='holiday_date',
+                                       direction='nearest', tolerance=pd.Timedelta(days=7))
         # Calculate the distance between the nearest holiday and the flight date in days
         flight_details['days-from-holiday'] = (flight_details['FL_DATE_LOCAL'] - flight_details['holiday_date']).dt.days
         # If the flight is exactly on the date of the holiday (0 days from it) we pull in the name of the holiday itself
@@ -242,7 +259,8 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
 
         # Next we create a field that tells us exactly how many days the flight is from a specific holiday if any
         flight_details['days-from-holiday'] = flight_details['days-from-holiday'].astype(str)
-        flight_details['days-from-specific-holiday'] = flight_details['holiday_name'] + '_' + flight_details['days-from-holiday'].astype(str)
+        flight_details['days-from-specific-holiday'] = flight_details['holiday_name'] + '_' + flight_details[
+            'days-from-holiday'].astype(str)
         # If not close to a holiday, simply replace with 'no-close-holiday'
         flight_details['days-from-specific-holiday'].fillna('no-close-holiday', inplace=True)
 
@@ -259,12 +277,13 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         end_date = flight_details['FL_DATE_LOCAL'].dt.date.astype(str)[0]
         # Set the location (in latitude and longitude) for where the API is pulling weather forecasts for
         location = flight_details['origin-lat-long'][0]
-        days = flight_details['days-to-forecast'][0].astype(str)
         # Declare the request plus store it in a json afterwards for both the origin and destination
-        r_origin = requests.get(forecast_data_url + '?key=' + api_key + '&q=' + location + '&' + days + '&dt=' + start_date + '&end_dt=' + end_date)
+        r_origin = requests.get(
+            forecast_data_url + '?key=' + api_key + '&q=' + location + '&dt=' + start_date + '&end_dt=' + end_date)
         d_origin = json.loads(r_origin.text)
         dest_location = flight_details['dest-lat-long'][0]
-        r_dest = requests.get(forecast_data_url + '?key=' + api_key + '&q=' + dest_location + '&' + days + '&dt=' + start_date + '&end_dt=' + end_date)
+        r_dest = requests.get(
+            forecast_data_url + '?key=' + api_key + '&q=' + dest_location + '&dt=' + start_date + '&end_dt=' + end_date)
         d_dest = json.loads(r_dest.text)
         # Next we parse the JSON document created above to add weather forecast details to the new columns
         flight_details['maxtemp'] = d_origin['forecast']['forecastday'][0]['day']['maxtemp_c']
@@ -291,12 +310,12 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         flight_details['CRS_DEP_TIME'] = flight_details['FL_DATE_LOCAL'].dt.strftime('%H:%M')
         flight_details['CRS_ARR_TIME'] = flight_details['FL_ARR_DATE_LOCAL'].dt.strftime('%H:%M')
         flight_details['takeoff-mins-from-midnight'] = ((pd.to_datetime(flight_details['CRS_DEP_TIME'])
-                                                       - pd.to_datetime(flight_details['CRS_DEP_TIME']).dt.normalize()) \
-                                                      / pd.Timedelta('1 minute')).astype(int)
+                                                         - pd.to_datetime(
+                    flight_details['CRS_DEP_TIME']).dt.normalize()) / pd.Timedelta('1 minute')).astype(int)
         flight_details['CRS_ARR_TIME'] = flight_details['CRS_ARR_TIME'].replace({'24:00': '00:00'})
         flight_details['landing-mins-from-midnight'] = ((pd.to_datetime(flight_details['CRS_ARR_TIME'])
-                                                       - pd.to_datetime(flight_details['CRS_ARR_TIME']).dt.normalize()) \
-                                                      / pd.Timedelta('1 minute')).astype(int)
+                                                         - pd.to_datetime(
+                    flight_details['CRS_ARR_TIME']).dt.normalize()) / pd.Timedelta('1 minute')).astype(int)
         # Below we declare all the columns our model needs to run
         model_cols = ['CRS_ELAPSED_TIME', 'DISTANCE', 'origin-elevation',
                       'dest-elevation', 'avg-takeoff-congestion', 'avg-arrival-congestion',
@@ -309,6 +328,8 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         # We create a copy of the above dataframe with just the relevant columns for the model
         # This gets rid of all the random columns we created to fetch the data (like the keys, etc.)
         X = flight_details[model_cols].copy()
+        X['MONTH'] = X['MONTH'].astype(str)
+        X['DAY_OF_MONTH'] = X['DAY_OF_MONTH'].astype(str)
         # Load our model
         filename = 'model.sav'
         loaded_model = pickle.load(open(filename, 'rb'))
@@ -343,48 +364,91 @@ def update_output(n_clicks):
 # Callback for retreiving airport-specific charts based on user selection
 @app.callback(
 dash.dependencies.Output('airport-specific-charts-1', 'children'),
-dash.dependencies.Output('airport-specific-charts-2', 'children'),
-dash.dependencies.Output('airport-specific-charts-3', 'children'),
-[dash.dependencies.Input('airport-dropdown', 'value')])
-def update_output(fig_name):
-    return name_to_figure(fig_name)
-def name_to_figure(fig_name):
+[dash.dependencies.Input('airport-dropdown', 'value'),
+ dash.dependencies.Input('airport-dropdown-2', 'value')])
+def name_to_figure(fig_name, graph_type):
     '''
     function takes airport name string
     uses it to filter dataframes for airport specific data
     returns 3 plotly express graphs for selected airport
     '''
-    order_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    order_times = ['Night', 'Late Evening', 'Early Evening', 'Late Afternoon', 'Early Afternoon', 'Late Morning',
-                   'Early Morning']
-    days_and_times = px.density_heatmap(df_weekdays_times.loc[df_weekdays_times['ORIGIN'] == '{}'.format(fig_name)],
-                             x="DAY_OF_WEEK", y="takeoff-time-of-day", z='percent-delayed', histfunc="avg",
+    origin = "'{}'".format(fig_name)
+    if fig_name is not None and graph_type is not None:
+        load_dotenv()
+        pg_user = os.getenv("PG_USR")
+        pg_pass = os.getenv("PG_PASS")
+        engine = create_engine('postgresql://{}:{}@database/carrier_data'.format(pg_user, pg_pass))
+        if graph_type == "Holidays":
+            holiday_query = '''
+            WITH total AS (
+                SELECT holiday, count(*) AS total_flights
+                FROM flights
+                WHERE "ORIGIN" = {}
+                GROUP BY holiday 
+            )
+            SELECT total.total_flights, total.holiday, (
+                    SELECT count(*) 
+                    FROM flights 
+                    WHERE holiday = total.holiday
+                        AND "target"='Yes'
+                        AND "ORIGIN" = {}
+                )::float / count(*) as percentage_delayed
+            FROM flights, total 
+            WHERE flights.holiday = total.holiday
+                AND "ORIGIN" = {}
+            GROUP BY total.holiday, total.total_flights
+            '''.format(origin, origin, origin)
+
+            holiday_query_output_df = pd.read_sql(holiday_query, engine)
+
+            delays_by_holiday = px.bar(holiday_query_output_df,
+                                       x=holiday_query_output_df['holiday'],
+                                       y=holiday_query_output_df['percentage_delayed'],
+                                       color=holiday_query_output_df['percentage_delayed'],
+                                       color_continuous_scale='OrRd',
+                                       labels={"x": "Holiday",
+                                               "y": "Severe Delays"},
+                                       title="Percent of Flights Severely Delayed by Holiday at {} Airport".format(
+                                           fig_name))
+            return dcc.Graph(figure=delays_by_holiday)
+
+        elif graph_type == "Throughout the Week":
+            week_query = '''
+            WITH total AS (
+                SELECT "DAY_OF_WEEK", "takeoff-time-of-day", count(*) AS total_flights
+                FROM flights
+                WHERE "ORIGIN" = {}
+                GROUP BY "DAY_OF_WEEK", "takeoff-time-of-day"
+            )
+            SELECT total."DAY_OF_WEEK", total."takeoff-time-of-day",  (
+                    SELECT count(*) 
+                    FROM flights 
+                    WHERE flights."takeoff-time-of-day" = total."takeoff-time-of-day"
+                        AND flights."DAY_OF_WEEK" = total."DAY_OF_WEEK"
+                        AND "target"='Yes'
+                        AND "ORIGIN" = {}
+                )::float / count(*) as percentage_delayed
+            FROM flights, total 
+            WHERE flights."takeoff-time-of-day" = total."takeoff-time-of-day"
+                AND flights."DAY_OF_WEEK" = total."DAY_OF_WEEK"
+                AND "ORIGIN" = {}
+            GROUP BY total."DAY_OF_WEEK", total."takeoff-time-of-day"
+            '''.format(origin, origin, origin)
+
+            week_query_query_output_df = pd.read_sql(week_query, engine)
+
+            order_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            order_times = ['Night', 'Late Evening', 'Early Evening', 'Late Afternoon', 'Early Afternoon', 'Late Morning', 'Early Morning']
+
+            days_and_times = px.density_heatmap(week_query_query_output_df,
+                             x="DAY_OF_WEEK", y="takeoff-time-of-day", z='percentage_delayed', histfunc="avg",
                              color_continuous_scale='OrRd',
                              category_orders={"DAY_OF_WEEK": order_days, "takeoff-time-of-day": order_times},
                              title='Percent of Flights with Severe Delays Throughout the Week')
 
-    days_and_times.update_layout(coloraxis_colorbar=dict(
-        title="% Delayed",
-    ))
-
-    delays_by_holiday = px.bar(df_by_holiday,
-                             x=df_by_holiday.loc[df_by_holiday['ORIGIN'] == '{}'.format(fig_name)]['holiday'],
-                             y=df_by_holiday.loc[df_by_holiday['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
-                             color=df_by_holiday.loc[df_by_holiday['ORIGIN'] == '{}'.format(fig_name)]['percent-delayed'],
-                             color_continuous_scale='OrRd',
-                             labels={"x": "Holiday",
-                                     "y": "Severe Delays"},
-                             title="Percent of Flights Severely Delayed by Holiday at {} Airport".format(fig_name))
-    overall_delays = px.line(df_by_airport,
-                  x=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['FL_DATE'],
-                  y=df_by_airport.loc[df_by_airport['ORIGIN'] == '{}'.format(fig_name)]['Severe Delays'],
-                  labels={"x": "Date",
-                          "y": "Severe Delays"},
-                  title="Daily Severe Airport Delays at {} Airport".format(fig_name))
-    overall_delays.update_layout(xaxis_rangeslider_visible=True)
-
-    return dcc.Graph(figure=days_and_times), dcc.Graph(figure=delays_by_holiday), dcc.Graph(figure=overall_delays)
-
+            days_and_times.update_layout(coloraxis_colorbar=dict(
+            title="% Delayed"))
+            return dcc.Graph(figure=days_and_times)
 @server.route('/flight-delays', methods=['GET'])
 def index():
     return flask.redirect('/flight-delays')
