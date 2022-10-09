@@ -37,11 +37,10 @@ engine = create_engine('postgresql://{}:{}@database/carrier_data'.format(pg_user
 airports_query = '''
 SELECT MIN("ORIGIN") as "ORIGIN", MIN("DEST") as "DEST", MIN("origin-elevation") as "origin-elevation", 
 MIN("dest-elevation") as "dest-elevation", MIN("DISTANCE") as "DISTANCE", MIN("dest-lat-long") as "dest-lat-long",
-MIN("origin-lat-long") as "origin-lat-long", MIN("origin-tz") as "origin-tz", MIN("dest-tz") as "dest-tz",
-("ORIGIN" || "DEST") as airport_lookup_key
-from flights
+MIN("origin-lat-long") as "origin-lat-long", MIN("origin-tz") as "origin-tz", MIN("dest-tz") as "dest-tz", MIN("route") as "route"
+from airports
 GROUP BY
-    airport_lookup_key
+    route
 '''
 airports_df = pd.read_sql(airports_query, engine)
 origins_list = sorted(list(airports_df['ORIGIN'].unique())) # Sorted list of origin options
@@ -381,21 +380,19 @@ def name_to_figure(fig_name, graph_type):
         if graph_type == "Holidays":
             holiday_query = '''
             WITH total AS (
-                SELECT holiday, count(*) AS total_flights
-                FROM flights
+                SELECT holiday, SUM("Yes" + "No") AS total_flights
+                FROM airports
                 WHERE "ORIGIN" = {}
-                GROUP BY holiday 
+                GROUP BY holiday
             )
-            SELECT total.total_flights, total.holiday, (
-                    SELECT count(*) 
-                    FROM flights 
-                    WHERE holiday = total.holiday
-                        AND "target"='Yes'
+            SELECT total.holiday, total.total_flights, (
+                    SELECT SUM("Yes")
+                    FROM airports
+                    WHERE airports.holiday = total.holiday
                         AND "ORIGIN" = {}
-                )::float / count(*) as percentage_delayed
-            FROM flights, total 
-            WHERE flights.holiday = total.holiday
-                AND "ORIGIN" = {}
+                ) / total.total_flights as percentage_delayed
+            FROM airports, total 
+            WHERE airports.holiday = total.holiday
             GROUP BY total.holiday, total.total_flights
             '''.format(origin, origin, origin)
 
@@ -415,24 +412,23 @@ def name_to_figure(fig_name, graph_type):
         elif graph_type == "Throughout the Week":
             week_query = '''
             WITH total AS (
-                SELECT "DAY_OF_WEEK", "takeoff-time-of-day", count(*) AS total_flights
-                FROM flights
+                SELECT "DAY_OF_WEEK", "takeoff-time-of-day", SUM("Yes" + "No") AS total_flights
+                FROM airports
                 WHERE "ORIGIN" = {}
                 GROUP BY "DAY_OF_WEEK", "takeoff-time-of-day"
-            )
-            SELECT total."DAY_OF_WEEK", total."takeoff-time-of-day",  (
-                    SELECT count(*) 
-                    FROM flights 
-                    WHERE flights."takeoff-time-of-day" = total."takeoff-time-of-day"
-                        AND flights."DAY_OF_WEEK" = total."DAY_OF_WEEK"
-                        AND "target"='Yes'
+                )
+                SELECT total."DAY_OF_WEEK", total."takeoff-time-of-day", total.total_flights, (
+                    SELECT SUM("Yes")
+                    FROM airports
+                    WHERE airports."takeoff-time-of-day" = total."takeoff-time-of-day"
+                        AND airports."DAY_OF_WEEK" = total."DAY_OF_WEEK"
                         AND "ORIGIN" = {}
-                )::float / count(*) as percentage_delayed
-            FROM flights, total 
-            WHERE flights."takeoff-time-of-day" = total."takeoff-time-of-day"
-                AND flights."DAY_OF_WEEK" = total."DAY_OF_WEEK"
-                AND "ORIGIN" = {}
-            GROUP BY total."DAY_OF_WEEK", total."takeoff-time-of-day"
+                    ) / total.total_flights as percentage_delayed
+                FROM airports, total 
+                WHERE airports."takeoff-time-of-day" = total."takeoff-time-of-day"
+                    AND airports."DAY_OF_WEEK" = total."DAY_OF_WEEK"
+                    AND "ORIGIN" = {}
+                GROUP BY total."DAY_OF_WEEK", total."takeoff-time-of-day", total.total_flights
             '''.format(origin, origin, origin)
 
             week_query_query_output_df = pd.read_sql(week_query, engine)
