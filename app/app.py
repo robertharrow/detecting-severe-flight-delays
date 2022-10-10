@@ -60,53 +60,58 @@ def remove_timezone(dt):
     return dt.replace(tzinfo=None)
 
 # Disclaimer text to display in layout
-disclaimer_text = 'Disclaimer: This model will try to predict whether a future flight will experience a severe delay (defined as 1 hour or more). The model isn\'t guaranteed to be correct.' \
-                  ' Currently, it also only supports flights originating from 62 major US airports and the top 8 major airlines'
+disclaimer_text = 'This web app will predict whether a future US domestic flight will have a severe delay (defined as 1 hour or more).' \
+                  ' Currently, the app only supports flights from 62 major US airports and the top 8 major airlines.'
 
 # Main app content
 app.layout = dbc.Container([
-        dbc.Row(dbc.Col(html.H2("Will your flight be severely delayed?"), width={'size': 12, 'offset': 0}), style={'textAlign': 'center', 'paddingBottom': '2%', 'paddingTop': '2%'}),
-        dbc.Row(dbc.Col(html.P(disclaimer_text), width={'size': 6, 'offset': 3}), style={'textAlign': 'center', 'paddingBottom': '10px', 'paddingTop': '10px', 'font-style': 'italic'}),
-        dbc.Row(dbc.Col(html.Div([html.P("Step 1: Select your Airline"),
-                                  html.Div(dcc.Dropdown(id='select-airline', options=[{'label': x, 'value': x} for x in relevant_airlines])),
-                                  html.P("Step 2: Select the airport you\'re flying FROM:", style={'paddingTop': '10px'}),
-                                  html.Div(dcc.Dropdown(id='select-origin', options=[{'label': x, 'value': x} for x in origins_list])),
-                                  html.P("Step 3: Select the airport you\'re flying TO:", style={'paddingTop': '10px'}),
-                                  html.Div(dcc.Dropdown(id='select-dest')),
-                                  html.P("Step 4: Enter your flight date (up to 14 days from today):", style={'paddingTop': '10px'}),
-                                  html.Div([
-                                        dcc.DatePickerSingle(
-                                            id='my-date-picker-single',
-                                            min_date_allowed=date.today() + timedelta(days=1),
-                                            max_date_allowed=date.today() + timedelta(days=14),
-                                            initial_visible_month=date.today(),
-                                            date=date.today() + timedelta(days=1)
-                                        )
-                                    ]),
-                                  html.P("Step 5: Enter your flight time (24 Hour Format):", style={'paddingTop': '10px'}),
-                                  html.Div(
-                                      [dcc.Input(id="hour-time", min=0, max=24, step=1, type="number", debounce=True, placeholder="HH", style={'width': '15%'}),
-                                       dcc.Input(id="minutes-time", min=0, max=60, step=1, type="number", debounce=True, placeholder="MM", style={'width': '15%'})]),
-                                  html.P("Step 6: Enter your flight duration:", style={'paddingTop': '10px'}),
-                                  html.Div(
-                                      [dcc.Input(id="hour-duration", min=0, max=24, step=1, type="number", debounce=True, placeholder="Hours", style={'width': '15%'}),
-                                          dcc.Input(id="minutes-duration", min=0, max=60, step=1, type="number", debounce=True, placeholder="Minutes", style={'width': '15%'})]),
-                                  html.P("Press the \"Predict\" button! ", style={'paddingTop': '10px'}),
-                                  html.Button('Predict', id='submit-val', style={'background-color': '#4681f4', 'color': 'white', 'border':'2px solid #4681f4', 'width': '100%'})],
-                                  id='model-inputs', style={'font-weight': 'bold'}), width={'size': 6, 'offset': 3})),
-        dbc.Row(dbc.Col(html.H4(id='prediction', style={'font-weight': 'bold', 'paddingBottom': '2%', 'paddingTop': '1%', 'border-style': 'solid', 'border-color': '#5dbea3'}), width={'size': 6, 'offset': 3})),
-        dbc.Row(dbc.Col(html.H3("See Stats by Airport"), width={'size': 6, 'offset': 3}), style={'textAlign': 'center', 'paddingBottom': '1%', 'paddingTop': '3%'}),
-        dbc.Row(dbc.Col(html.P("Select an airport and see more details about severe delays there."), width={'size': 6, 'offset': 3})),
-        dbc.Row(dbc.Col(html.Div([
-            dcc.Dropdown(
-                id='airport-dropdown',
-                options=[{'label': x, 'value': x} for x in origins_list])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
-        dbc.Row(dbc.Col(html.Div([
-            dcc.Dropdown(
-                id='airport-dropdown-2',
-                options=['Holidays', 'Throughout the Week'])]), width={"size": 6, "offset": 3}, style={'paddingBottom': '2%', 'paddingTop': '1%'})),
-        dbc.Row(dbc.Col(html.Div(id='airport-specific-charts-1'), width={"size": 12, "offset": 0}))
-])
+        dbc.Row(dbc.Col([
+                         html.H2("Will your flight be severely delayed?"),
+                         html.P(disclaimer_text)
+                        ]), style={'textAlign': 'center', 'paddingTop': '2%'}),
+        dbc.Row(dbc.Col([html.Div([
+        dbc.Row(dbc.Col([
+                         html.P("1: Select your Airline", style={'paddingTop': '10px', 'font-weight': 'bold'}),
+                         html.Div(dcc.Dropdown(id='select-airline', options=[{'label': x, 'value': x} for x in relevant_airlines]))
+                        ])),
+        dbc.Row(
+            [
+        dbc.Col([
+                 html.P("2: Flying FROM:", style={'paddingTop': '10px', 'font-weight': 'bold'}),
+                 html.Div(dcc.Dropdown(id='select-origin', options=[{'label': x, 'value': x} for x in origins_list]))
+                         ]),
+        dbc.Col([
+                 html.P("3: Flying TO:", style={'paddingTop': '10px', 'font-weight': 'bold'}),
+                 html.Div(dcc.Dropdown(id='select-dest'))
+                        ])]),
+        dbc.Row(
+            [
+        dbc.Col([
+                 html.P("4: Flight Date:", style={'paddingTop': '10px', 'font-weight': 'bold'}),
+                 html.Div([dcc.DatePickerSingle(id='my-date-picker-single',
+                                               min_date_allowed=date.today() + timedelta(days=1),
+                                               max_date_allowed=date.today() + timedelta(days=14),
+                                               initial_visible_month=date.today(),
+                                               date=date.today() + timedelta(days=1))])]),
+        dbc.Col([
+                 html.P("5: Flight Time (24 Hour Format):", style={'paddingTop': '10px', 'font-weight': 'bold'}),
+                 html.Div([dcc.Input(id="hour-time", min=0, max=24, step=1, type="number", debounce=True, placeholder="HH", style={'width': '15%'}),
+                           dcc.Input(id="minutes-time", min=0, max=60, step=1, type="number", debounce=True, placeholder="MM", style={'width': '15%'})])
+                ])]),
+       dbc.Row(dbc.Col(html.Button('Predict', id='submit-val', style={'background-color': '#4681f4', 'color': 'white', 'border':'2px solid #4681f4', 'width': '100%'}), style={'paddingTop': '10px'})),
+        ], id='model-inputs'),
+       dbc.Row(html.H4(id='prediction'))])),
+       dbc.Row(
+           dbc.Col(html.H3("Delay Severity Charts by Airport"), style={'textAlign': 'center', 'paddingTop': '2%'})),
+       dbc.Row([
+           dbc.Col([html.P("Select an airport", style={'textAlign': 'center'}),
+                    html.Div(dcc.Dropdown(id='airport-dropdown', options=[{'label': x, 'value': x} for x in origins_list]))
+                   ]),
+           dbc.Col([html.P("Select a graph", style={'textAlign': 'center'}),
+                    html.Div([dcc.Dropdown(id='airport-dropdown-2', options=['Holidays', 'Throughout the Week'])])])
+               ]),
+       dbc.Row(html.Div(id='airport-specific-charts-1'))
+                            ])
 # Callbacks
 @app.callback(dash.dependencies.Output('select-dest', 'options'),
                dash.dependencies.Input('select-origin', 'value'))
@@ -121,11 +126,9 @@ def get_destination_options(origin):
                dash.dependencies.Input('my-date-picker-single', 'date'),
                dash.dependencies.Input('hour-time', 'value'),
                dash.dependencies.Input('minutes-time', 'value'),
-               dash.dependencies.Input('hour-duration', 'value'),
-               dash.dependencies.Input('minutes-duration', 'value'),
                dash.dependencies.Input('submit-val', 'n_clicks')])
 
-def predict(airline, origin, destination, date_value, hour_takeoff, minutes_takeoff, hour_duration, minutes_duration, n_clicks):
+def predict(airline, origin, destination, date_value, hour_takeoff, minutes_takeoff, n_clicks):
     '''
     Function accepts user inputs from dash app
     Uses inputs to create a dataframe which it then passes to pickled model
@@ -154,17 +157,24 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
         # Set first values of dataframe based on above user input: Origin Airport, Destination Airport, Airline, Flight Date, Flight Time and Flight Duration
         flight_details['ORIGIN'] = [str(origin)]
         flight_details['DEST'] = str(destination)
+        # Create airport lookup key
+        flight_details['route'] = flight_details['ORIGIN'] + '-' + flight_details['DEST']
+        routes_query = '''
+        SELECT *
+        FROM route_times
+        '''
+        route_times_df = pd.read_sql(routes_query, engine)
+        flight_details = pd.merge(flight_details, route_times_df, left_on='route',
+                                  right_on='route')
         flight_details['MKT_CARRIER'] = str(airline)
         flight_details['MKT_CARRIER'].replace(relevant_airlines, inplace=True)
         flight_details['FL_DATE'] = date_string
         flight_details['time'] = str(hour_takeoff) + ':' + str(minutes_takeoff)
         # Flight duration must be expressed in minutes so we transform it here
-        flight_details['CRS_ELAPSED_TIME'] = (hour_duration * 60) + minutes_duration
+
         # Add date and time into single FL_DATE field
         flight_details['FL_DATE_LOCAL'] = pd.to_datetime(flight_details['FL_DATE'] + ' ' + flight_details['time'])
         flight_details['FL_DATE_LOCAL'] = flight_details['FL_DATE_LOCAL'].astype('datetime64[ns]')
-        # Create airport lookup key
-        flight_details['route'] = flight_details['ORIGIN'] + '-' + flight_details['DEST']
         # Merge in additional airport details from airport datafame using the above created key
         flight_details = pd.merge(flight_details, airports_df, left_on='route',
                                   right_on='route')

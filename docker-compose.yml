@@ -40,6 +40,8 @@ services:
       - "5050:80"
     networks:
       - new
+    volumes:
+      - db-data:/var/lib/pgadmin/data
 networks:
   new:
 
