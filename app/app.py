@@ -110,7 +110,8 @@ app.layout = dbc.Container([
            dbc.Col([html.P("Select a graph", style={'textAlign': 'center'}),
                     html.Div([dcc.Dropdown(id='airport-dropdown-2', options=['Holidays', 'Throughout the Week'])])])
                ]),
-       dbc.Row(html.Div(id='airport-specific-charts-1'))
+       dbc.Row(dbc.Col([
+                        html.Div(id='airport-specific-charts-1'),]), style={'textAlign': 'center', 'paddingTop': '1%'})
                             ])
 # Callbacks
 @app.callback(dash.dependencies.Output('select-dest', 'options'),
