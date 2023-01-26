@@ -35,3 +35,4 @@ python-dotenv
 postgres
 sqlalchemy
 psycopg2-binary
+scikit-learn==1.1
