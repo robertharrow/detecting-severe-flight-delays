@@ -1,45 +1,53 @@
 version: '3.7'
 services:
-
-  air-travel-delays:
-    build:
-      context: ./
-    container_name: air-travel-delays
-    hostname: air-travel-delays
-    restart: always
+  my-app:
+    build: .
     ports:
-      - 80:80
+      - "8000:8000"
+    depends_on:
+      - postgresql
+      - pgadmin
     networks:
       - new
 
-  db:
-    container_name: pg_container
+  nginx:
+    build:
+      context: "nginx/."
+      dockerfile: "Dockerfile"
+    volumes:
+      - nginx:/usr/share/nginx/html/
+    ports:
+      - "80:80"
+    restart: "unless-stopped"
+    container_name: "local_nginx"
+    networks:
+      - new
+
+  postgresql:
     image: postgres
-    restart: always
     environment:
       POSTGRES_USER: ${PG_USR}
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_DB: flights_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - db-data:/var/lib/postgresql/data
     networks:
       new:
         aliases:
           - database
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/usr/share/nginx/html/
 
   pgadmin:
-    container_name: pgadmin4_container
     image: dpage/pgadmin4
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-    ports:
-      - "5050:80"
     networks:
       - new
+    ports:
+      - "5050:80"
     volumes:
       - db-data:/var/lib/pgadmin/data
 networks:
@@ -48,5 +56,5 @@ networks:
 volumes:
   db-data:
     driver: local
-  db:
+  nginx:
     driver: local
