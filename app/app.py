@@ -28,7 +28,6 @@ server = Flask(__name__)
 app = dash.Dash(server=server, url_base_pathname='/flight-delays/', external_stylesheets=[dbc.themes.FLATLY], prevent_initial_callbacks=True)
 app.title = 'air-travel-delays'
 
-
 load_dotenv()
 pg_user = os.getenv("PG_USR")
 pg_pass = os.getenv("PG_PASS")
@@ -46,7 +45,7 @@ airports_df = pd.read_sql(airports_query, engine)
 origins_list = sorted(list(airports_df['ORIGIN'].unique())) # Sorted list of origin options
 
 # Loading Data for Visualizations
-holidays = pd.read_csv('data/prepared/holidays.csv') # US Holidays Dataframe
+holidays = pd.read_csv('appdata/holidays.csv') # US Holidays Dataframe
 holidays['holiday_date'] = pd.to_datetime(holidays['holiday_date']) # Transforming date field in Holidays Dataframe to datetime
 relevant_airlines = sorted(['Southwest', 'Delta', 'SkyWest', 'American Airlines', 'United Airlines', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines']) # Supported Airlines List
 
@@ -247,7 +246,7 @@ def predict(airline, origin, destination, date_value, hour_takeoff, minutes_take
                                                    + flight_details['arrival-time-of-day']
 
         # Now we add congestion data to our main dataframe and merge it using the above generated key
-        congestion = pd.read_csv('data/prepared/airport_congestion.csv')
+        congestion = pd.read_csv('appdata/airport_congestion.csv')
         flight_details = pd.merge(flight_details, congestion, left_on='takeoff-congestion-key',
                                   right_on='congestion-key')
         # Update our key for the destination
@@ -459,6 +458,5 @@ def name_to_figure(fig_name, graph_type):
 @server.route('/flight-delays', methods=['GET'])
 def index():
     return flask.redirect('/flight-delays')
-
 if __name__ == '__main__':
-    server.run(debug=True)
+    server.run(host='0.0.0.0', port=8000)
