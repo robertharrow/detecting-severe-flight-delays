@@ -7,6 +7,9 @@ Our client, FlightChicken, is developing a service to help users predict whether
 
 There are millions of flights each year across thousands of airports and airlines (major and minor). For this MVP FlightChicken is tasking us to develop a minimum viable product (MVP) that supports 8 of the biggest airlines and 62 major domestic airports.
 
+### Live Demo
+A live demo of this model can be accessed [here](https://robertharrow.com/flight-delays/). That link has this model running using Dash and is deployed to a remote webserver using Docker (and is part of my personal website). Code for how to productionize this model and build an app around it is currently not in a public repo.
+
 ## Business Understanding
 
 Our task is to solve the following business problems:
@@ -193,30 +196,6 @@ The best results were obtained by increasing the training sample size to 20% of 
 | macro avg    | 0.55          | 0.68       | 0.53         | 108,097      |
 | weighted avg | 0.91          | 0.72       | 0.79         | 108,097      |
 
-## Deploying to web server
-
-If you want to deploy this model to a web server, you will need Docker installed. We ran and tested this on an Ubuntu server using the following commands:
-
-To install docker on an Ubuntu server run the following commands:
-
-```
-$ sudo apt-get update
-$ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-```
-
-Once running, run the following commands to start up the docker images and containers:
-
-```
-$ docker-compose build
-$ docker-compose up -d
-```
-The above will use the Dockerfile and Docker-Compose.yml files and settings.
-
-**IMPORTANT** For the above to work, you need to set the enviromental variable with your weather API key. The key should be stored in a .env file. Make sure the file is added to your .gitignore file so you don't leak your private key.
-
-A working demo of our version of the app can be accessed on: http://robertharrow.com:5000/
-
-If you run into issues using docker, or want instructions on installing it on a different type of OS, documentation can be found [here](https://docs.docker.com/).
 
 ## Conclusions
 
